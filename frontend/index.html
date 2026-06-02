@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Voice AI Agent</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0a0a0f;
+      color: #e8e6f0;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #a78bfa, #60a5fa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      color: #4a4a6a;
+      font-size: 0.9rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .mic-btn {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      border: none;
+      background: linear-gradient(135deg, #7c3aed, #2563eb);
+      cursor: pointer;
+      font-size: 2.5rem;
+      transition: all 0.2s;
+      box-shadow: 0 0 30px rgba(124, 58, 237, 0.3);
+    }
+
+    .mic-btn:hover { transform: scale(1.05); }
+
+    .mic-btn.recording {
+      background: linear-gradient(135deg, #dc2626, #ea580c);
+      animation: pulse 1s infinite;
+      box-shadow: 0 0 40px rgba(220, 38, 38, 0.5);
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.08); }
+    }
+
+    .status {
+      margin-top: 1.2rem;
+      font-size: 0.85rem;
+      color: #6b6980;
+      height: 20px;
+    }
+
+    .chat {
+      width: 100%;
+      max-width: 650px;
+      margin-top: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .bubble {
+      padding: 0.9rem 1.2rem;
+      border-radius: 14px;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      max-width: 85%;
+    }
+
+    .bubble.user {
+      background: #1e1040;
+      border: 1px solid #3730a3;
+      color: #c4b5fd;
+      align-self: flex-end;
+    }
+
+    .bubble.agent {
+      background: #13131f;
+      border: 1px solid #1e1e30;
+      color: #e8e6f0;
+      align-self: flex-start;
+    }
+
+    .instructions {
+      margin-top: 1.5rem;
+      font-size: 0.8rem;
+      color: #2a2a3a;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🧠 Voice AI Agent</h1>
+  <p class="subtitle">Click mic → speak → get a voice response</p>
+
+  <button class="mic-btn" id="micBtn" onclick="toggleRecording()">🎙️</button>
+  <div class="status" id="status">Ready</div>
+
+  <div class="chat" id="chat"></div>
+  <p class="instructions">Click once to start recording. Click again to stop and send.</p>
+
+  <script>
+    let ws = null
+    let mediaRecorder = null
+    let recording = false
+
+    function connectWS() {
+      const host = window.location.host
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
+      ws = new WebSocket(`${protocol}//${host}/ws`)
+      ws.binaryType = "arraybuffer"
+
+      ws.onopen = () => setStatus("Connected ✓")
+
+      ws.onmessage = (event) => {
+        if (event.data instanceof ArrayBuffer) {
+          const blob = new Blob([event.data], { type: "audio/mp3" })
+          const url = URL.createObjectURL(blob)
+          const audio = new Audio(url)
+          audio.play()
+        } else {
+          const data = JSON.parse(event.data)
+          if (data.type === "status") setStatus(data.message)
+          if (data.type === "transcript") addBubble(data.text, "user")
+          if (data.type === "response") addBubble(data.text, "agent")
+        }
+      }
+
+      ws.onclose = () => {
+        setStatus("Disconnected — reconnecting...")
+        setTimeout(connectWS, 2000)
+      }
+
+      ws.onerror = () => ws.close()
+    }
+
+    async function toggleRecording() {
+      if (!recording) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        mediaRecorder = new MediaRecorder(stream)
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0 && ws.readyState === WebSocket.OPEN) {
+            ws.send(e.data)
+          }
+        }
+
+        mediaRecorder.start(250)
+        recording = true
+        document.getElementById("micBtn").classList.add("recording")
+        setStatus("Listening...")
+      } else {
+        mediaRecorder.stop()
+        mediaRecorder.stream.getTracks().forEach(t => t.stop())
+        recording = false
+        document.getElementById("micBtn").classList.remove("recording")
+        ws.send(JSON.stringify({ type: "end" }))
+        setStatus("Processing...")
+      }
+    }
+
+    function setStatus(msg) {
+      document.getElementById("status").textContent = msg
+    }
+
+    function addBubble(text, who) {
+      const div = document.createElement("div")
+      div.className = `bubble ${who}`
+      div.textContent = text
+      document.getElementById("chat").appendChild(div)
+      div.scrollIntoView({ behavior: "smooth" })
+    }
+
+    connectWS()
+  </script>
+
+</body>
+</html>
