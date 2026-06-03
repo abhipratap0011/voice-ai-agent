@@ -8,7 +8,7 @@
 ![Whisper](https://img.shields.io/badge/STT-Whisper-orange)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
-🔗 **[Live Demo](https://huggingface.co/spaces/Abhi001999/voice-ai-agent)**
+🔗 **[Live Demo](https://huggingface.co/spaces/Abhi001999/voice-ai-agent)** &nbsp;|&nbsp; 📂 **[GitHub](https://github.com/abhipratap0011/voice-ai-agent)**
 
 ---
 
